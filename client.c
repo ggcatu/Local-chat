@@ -9,26 +9,32 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
+#define PIPE_COM "/tmp/12-11006"
 #define DEFAULT_PIPE "server"
 #define ALTO 4
 
 WINDOW *ventanaOutput, *ventanaInput;
 int name_dec, server_dec;
-char name[50], to_server[55];
+char name[100], to_name[140] , to_server[140];
 
 void close_client(){
-	unlink(name);
+	unlink(to_name);
 	unlink(to_server);
 	endwin();
 }
 
-void send_hello(char * name, char * pipe){
+void send_hello(char * pipe){
 	int fd, messagelen;
  	char message[150];
-	unlink(name);
-        mknod(name, S_IFIFO, 0);
-        chmod(name, 0660);
-	sprintf(to_server, "%s_serv", name);
+	struct stat st = {0};
+	if (stat(PIPE_COM, &st) == -1) {
+    		mkdir(PIPE_COM, 0777);
+	}
+	sprintf(to_name, "%s/%s", PIPE_COM, name);
+	unlink(to_name);
+        mknod(to_name, S_IFIFO, 0);
+        chmod(to_name, 0660);
+	sprintf(to_server, "%s/%s_serv",PIPE_COM, name);
         unlink(to_server);
         mknod(to_server, S_IFIFO, 0);
         chmod(to_server, 0660);
@@ -40,7 +46,7 @@ void send_hello(char * name, char * pipe){
 		exit(1);
 	};
 	messagelen = strlen(message) + 1; 
-	name_dec = open(name, O_RDONLY | O_NONBLOCK);
+	name_dec = open(to_name, O_RDONLY | O_NONBLOCK);
    	write(fd, message, messagelen);
 	do { server_dec = open(to_server, O_WRONLY | O_NONBLOCK); } while (server_dec == -1);
 }
@@ -61,7 +67,7 @@ void enfocarInput(){
 
 void term_handler(){
 	char tmp[50];
-	sprintf(tmp, "%s -exit", name);
+	sprintf(tmp, "%s -salir", name);
 	write(server_dec, tmp, strlen(tmp)+1);
 	close_client();
 	exit(0);
@@ -80,7 +86,7 @@ void main(int argc, char * argv[]){
 	
 	// Inicializar senales.
 	if (signal(SIGINT, term_handler) == SIG_ERR) {
-        	printf("An error occurred while setting a signal handler.\n");
+        	printf("Ocurrio un error al colocar la signal.\n");
     	}
 
 	// Interfaz.
@@ -115,8 +121,7 @@ void main(int argc, char * argv[]){
 	}
 
 	// Identificarse con el servidor.
-	send_hello(name, pipe);
-	sprintf(to_server, "%s_serv", name);
+	send_hello(pipe);
 	wprintw(ventanaOutput, "Conectando al servidor. [%s]\n", pipe);
 	wrefresh(ventanaOutput);
 	enfocarInput();
@@ -158,6 +163,7 @@ void main(int argc, char * argv[]){
 			write(server_dec, command, strlen(command)+1);
                         wprintw(ventanaOutput, "<%s> %s\n", name, buffer);
                         wrefresh(ventanaOutput);
+			salir = strcmp(buffer,"-salir") == 0;
                         memset(buffer,0,200);
                         limpiarVentanaInput();
 			enfocarInput();
@@ -183,6 +189,7 @@ void main(int argc, char * argv[]){
                 }
 	}
 
-	close_client();
+	close_client();	
+	printf("Esperamos que vuelva a chatear pronto!\n");
 	exit(0);
 }

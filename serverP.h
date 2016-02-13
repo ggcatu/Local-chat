@@ -3,7 +3,7 @@
 
 struct User {
         char name[50];
-        char to_server[50];
+	int to_name, to_server;
         char status[50];
         struct User * last_w;
 	int index;
