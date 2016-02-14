@@ -142,7 +142,19 @@ void main(int argc, char * argv[]){
 		for (i = 0; i < 1; i++){
 			if( FD_ISSET(desc[i], &c_lectura)){
 				status = read(desc[i], message, sizeof(message));
-				if (status){	
+				if (status){
+					// Servidor esta lleno
+					if ( strcmp(message,"NO_MORE_ROOM") == 0 ) {
+						close_client();
+						printf("El servidor esta lleno, intente de nuevo.\n");
+						exit(1);
+					}
+					// Nombre ya utilizado
+					if ( strcmp(message,"NAME_USED") == 0 ) {
+                                                close_client();
+                                                printf("Ya existe alguien en el chat con ese nombre.\n");
+                                                exit(1);
+                                        }
 					wprintw(ventanaOutput, "%s", message);
 					wrefresh(ventanaOutput);
 					enfocarInput();

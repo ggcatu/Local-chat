@@ -13,7 +13,7 @@
 #define PIPE_COM "/tmp/12-11006"
 #define DEFAULT_PIPE "server"
 #define SERV_USR lista[0]
-#define MAX_CLIENT 21
+#define MAX_CLIENT 3
 #define MAX(x,y) (x > y ? x : y)
 
 char upipe[100];
@@ -28,27 +28,52 @@ int readLine(int fd, char *str) {
 return(n > 0);
 } 
 
+// Envia mensaje en casos especiales, seguido de una desconexion {NAME_USED, NO_MORE_ROOM}
+void send_message_close(int t1, int t2, char * msg){
+	printf("ALLALA\n");
+	if ( write(t1, msg, strlen(msg)+1) == -1 ) { perror("special_message write"); };
+	if ( close(t1) == -1 ) { perror("special_message close t1"); };
+	if ( close(t2) == -1 ) { perror("special_message close t2"); };
+}
+
 // Maneja las conexiones entrantes por el pipe nominal server.
 int accept_connection(char * msg, struct User * lista ){
 	char uname[50], tmp[100];
-	int i;
+	int i, j = -1, t1, t2;
 	sscanf(msg, "New user: %s", uname);
         printf("Nuevo usuario: %s\n", uname);
+	sprintf(tmp, "%s/%s", PIPE_COM, uname);
+	t1 =  open(tmp, O_WRONLY | O_NDELAY) ; if ( t1 == -1 ) { perror("error accepting WRITE"); }
+	sprintf(tmp, "%s_serv", tmp);
+	t2 = open(tmp, O_RDONLY | O_NDELAY) ; if ( t2 == -1 ) { perror("error accepting READ"); }
 	for( i = 1; i < MAX_CLIENT; i++ ) {
+		// El nombre ya esta utilizado
+		if ( strcmp(lista[i].name, uname) == 0 ) {
+			send_message_close(t1,t2,"NAME_USED");
+			printf("Refusing: %s Name already in use\n.", uname);
+			return -1;
+		}
+		// Slot vacio
 		if ( strcmp(lista[i].name,"") == 0 ) {
-			strcpy((&lista[i])->name, uname);
-			sprintf(tmp, "%s/%s", PIPE_COM, uname);
-			(&lista[i])->to_name =  open(tmp, O_WRONLY | O_NDELAY) ;
-			sprintf(tmp, "%s_serv", tmp);
-			(&lista[i])->to_server = open(tmp, O_RDONLY | O_NDELAY) ;
-			strcpy((&lista[i])->status, "Disponible");
-			(&lista[i])->last_w = NULL;
-			(&lista[i])->index = i;
-			return i;
+			if ( j == -1 ) j = i;
 		}
 	}
-	printf("There are no more slots\n");
-	return -1;
+	if (j == -1){
+		// Servidor full
+		send_message_close(t1,t2,"NO_MORE_ROOM");
+		printf("Refusing: %s There are no more slots\n", uname);
+		return -1;
+	} else {
+		// Aceptando conexion
+		printf("Accepting: Welcome! %s\n", uname);
+		strcpy((&lista[j])->name, uname);
+		lista[j].to_name =  t1;
+		lista[j].to_server = t2;
+		strcpy((&lista[j])->status, "Disponible");
+		(&lista[j])->last_w = NULL;
+		(&lista[j])->index = j;
+		return j;	
+	}
 }
 
 // Responde a los cambios de notificaciones y desconexion de los usuarios
@@ -99,13 +124,13 @@ int send_message(char * msg, struct User * user, struct User from){
 	char error[50];
 	if ( user != NULL) {
 		sprintf(mensaje, "[%s]: %s", from.name, msg);
-		write(user->to_name, mensaje, strlen(mensaje)+1);
+		if (  write(user->to_name, mensaje, strlen(mensaje)+1) == -1 ) { perror("write send_message") ;};
 		printf("Enviando mensaje a %s\n", user->name);
 		return 1;
 	} else {
 		if ( from.name != SERV_NAME ) {
 			sprintf(mensaje, "%s", "El usuario no esta conectado.\n");
-			write(from.to_name, mensaje, strlen(mensaje)+1);
+			if ( write(from.to_name, mensaje, strlen(mensaje)+1) == -1 ) { perror ("write send_message_not"); };
 		}
 	}
 	return 0;
@@ -191,15 +216,16 @@ void main(int argc, char * argv []){
 				if (status){
 				if ( i == 0 ) {
 					// Conexion entrante
-					printf("New connection \n");
 					j = accept_connection(msg,user_list);
+					printf("SLOT %d \n", j);
 					if( j >= 0 ) {
+						printf("assigned %d", user_list[j].to_name);
 						FD_SET(user_list[j].to_server, &lectura);
 						max_desc = MAX(max_desc, user_list[j].to_server)+1;
 						sprintf(msg, "%s se ha conectado.\n",user_list[j].name);
 						send_message_global(msg,&user_list[0], user_list);
 					} else {
-						printf("Connection refused.");
+						printf("Connection refused.\n");
 					}
 				} else {
 					sscanf(msg, "%s %s",who,cmd);
@@ -208,7 +234,6 @@ void main(int argc, char * argv []){
 						// Mensaje a un usuario
 						printf("%s", msg);
 						i = sscanf(msg, "%s %s %s %[^\t]", who,cmd,target,msg);
-						printf("Buscando target\n");
 						target_usr = get_user(target, user_list);
 						if (i >= 4){
 							//printf("%s sent a message to %s.\n", who, target_usr->name);
@@ -224,7 +249,7 @@ void main(int argc, char * argv []){
 						printf("El usuario (%d) %s se ha desconectado.\n",who_usr->index, who);
 						strcpy(who_usr->name, "");
 						FD_CLR(who_usr->to_server, &lectura);
-						close(who_usr->to_server);
+						if ( close(who_usr->to_server) == -1 ) { perror ("close en desconexion") ;};
 					} else if (strcmp(cmd,"-quien") == 0 ) {
 						// Quienes estan conectados
 						send_quienes(who_usr, user_list);
