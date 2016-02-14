@@ -217,9 +217,7 @@ void main(int argc, char * argv []){
 				if ( i == 0 ) {
 					// Conexion entrante
 					j = accept_connection(msg,user_list);
-					printf("SLOT %d \n", j);
 					if( j >= 0 ) {
-						printf("assigned %d", user_list[j].to_name);
 						FD_SET(user_list[j].to_server, &lectura);
 						max_desc = MAX(max_desc, user_list[j].to_server)+1;
 						sprintf(msg, "%s se ha conectado.\n",user_list[j].name);
@@ -236,7 +234,6 @@ void main(int argc, char * argv []){
 						i = sscanf(msg, "%s %s %s %[^\t]", who,cmd,target,msg);
 						target_usr = get_user(target, user_list);
 						if (i >= 4){
-							//printf("%s sent a message to %s.\n", who, target_usr->name);
 							send_message(msg, target_usr, *who_usr);
 							memset(msg,0,100);
 						};
@@ -260,8 +257,8 @@ void main(int argc, char * argv []){
 						notificar_estado(msg, who_usr, user_list);
 					} else {
 						// Mensaje al ultimo usuario
-						printf("(%d) %s: %s\n", who_usr->index,who,cmd);
 						sscanf(msg, "%s %[^\t]",who, cmd);
+						printf("(%d) %s: %s", who_usr->index,who,cmd);
 						if ( who_usr->last_w != NULL){
 							send_message(cmd, who_usr->last_w, *who_usr);
 						}

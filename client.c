@@ -17,9 +17,11 @@ WINDOW *ventanaOutput, *ventanaInput;
 int name_dec, server_dec;
 char name[100], to_name[140] , to_server[140];
 
+
+// Cierra el cliente.
 void close_client(){
-	unlink(to_name);
-	unlink(to_server);
+	if ( unlink(to_name) == 1 ) { perror("unlink closing");}
+	if ( unlink(to_server) == 1 ) { perror("unlink closing server");}
 	endwin();
 }
 
@@ -27,18 +29,26 @@ void send_hello(char * pipe){
 	int fd, messagelen;
  	char message[150];
 	struct stat st = {0};
+
+	// Chequear carpeta
 	if (stat(PIPE_COM, &st) == -1) {
-    		mkdir(PIPE_COM, 0777);
+    		if ( mkdir(PIPE_COM, 0777) == -1 ) { perror("mkdir error"); };
 	}
 	sprintf(to_name, "%s/%s", PIPE_COM, name);
 	unlink(to_name);
-        mknod(to_name, S_IFIFO, 0);
-        chmod(to_name, 0660);
+
+	// Crear pipe para recibir
+        if ( mknod(to_name, S_IFIFO, 0) == 1 ) { perror("error mknod receive");}
+        if ( chmod(to_name, 0660) == 1 ) { perror("error chmod receive");}
 	sprintf(to_server, "%s/%s_serv",PIPE_COM, name);
         unlink(to_server);
-        mknod(to_server, S_IFIFO, 0);
-        chmod(to_server, 0660);
+
+	// Crear pipe para enviar
+        if ( mknod(to_server, S_IFIFO, 0) == 1 ) { perror("error mknod send");}
+        if ( chmod(to_server, 0660) == 1 ) { perror("error mknod send");}
 	sprintf(message, "New user: %s", name);
+	
+	// Conexion con pipe de entrada al servidor
 	fd = open(pipe, O_WRONLY | O_NONBLOCK);
  	if ( fd == -1) {
 		close_client();
@@ -47,7 +57,8 @@ void send_hello(char * pipe){
 	};
 	messagelen = strlen(message) + 1; 
 	name_dec = open(to_name, O_RDONLY | O_NONBLOCK);
-   	write(fd, message, messagelen);
+	if ( name_dec == -1 ) { perror("name_dec failed"); }
+   	if ( write(fd, message, messagelen) == -1 ) { perror("error sending hello"); }
 	do { server_dec = open(to_server, O_WRONLY | O_NONBLOCK); } while (server_dec == -1);
 }
 
@@ -68,7 +79,7 @@ void enfocarInput(){
 void term_handler(){
 	char tmp[50];
 	sprintf(tmp, "%s -salir", name);
-	write(server_dec, tmp, strlen(tmp)+1);
+	if ( write(server_dec, tmp, strlen(tmp)+1) == 1 ) { perror("write -salir handler");}
 	close_client();
 	exit(0);
 }
@@ -106,6 +117,7 @@ void main(int argc, char * argv[]){
 
 	// Obtener usuario.
 	strcpy(name,getlogin());
+	if ( name == "" ) { perror("Error getting name"); }	
 
 	// Obtener pipe.
 	strcpy(pipe, DEFAULT_PIPE);
@@ -172,7 +184,7 @@ void main(int argc, char * argv[]){
                 if (c[0] == '\r'){
 			// Es un mensaje al servidor.
 			sprintf(command, "%s %s\n", name, buffer);
-			write(server_dec, command, strlen(command)+1);
+			if ( write(server_dec, command, strlen(command)+1) == -1 ) { perror("write sending_message"); }
                         wprintw(ventanaOutput, "<%s> %s\n", name, buffer);
                         wrefresh(ventanaOutput);
 			salir = strcmp(buffer,"-salir") == 0;
