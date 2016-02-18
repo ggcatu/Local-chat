@@ -16,7 +16,7 @@ make clean
 sudo apt-get install ncurses
 ```
 
-## Execute
+## Ejecutar:
 Si no se especifica un SERVER_PIPE se utiliza uno por defecto.
 ```
 ./client [-p SERVER_PIPE] [name]
