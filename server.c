@@ -13,7 +13,7 @@
 #define PIPE_COM "/tmp/12-11006"
 #define DEFAULT_PIPE "server_c"
 #define SERV_USR lista[0]
-#define MAX_CLIENT 3
+#define MAX_CLIENT 21
 #define MAX(x,y) (x > y ? x : y)
 
 char upipe[100];
@@ -219,7 +219,7 @@ void main(int argc, char * argv []){
 					j = accept_connection(msg,user_list);
 					if( j >= 0 ) {
 						FD_SET(user_list[j].to_server, &lectura);
-						max_desc = MAX(max_desc, user_list[j].to_server)+1;
+						if ( max_desc != MAX(max_desc, user_list[j].to_server )){ max_desc = user_list[j].to_server + 1; };
 						sprintf(msg, "%s se ha conectado.\n",user_list[j].name);
 						send_message_global(msg,&user_list[0], user_list);
 					} else {
@@ -239,7 +239,7 @@ void main(int argc, char * argv []){
 						};
                                                 who_usr->last_w = target_usr;
 
-					} else if (strcmp(cmd,"-salir") == 0 || strcmp(cmd,"-exit_serv")==0){
+					} else if (strcmp(cmd,"-salir") == 0){
 						// Desconexion de usuario
 						strcpy(msg,"se ha desconectado.");
 						notificar_estado(msg,who_usr,user_list);

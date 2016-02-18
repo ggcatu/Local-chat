@@ -11,6 +11,8 @@
 
 #define PIPE_COM "/tmp/12-11006"
 #define DEFAULT_PIPE "server_c"
+#define LINES_MIN 10
+#define COLS_MIN 25
 #define ALTO 4
 
 WINDOW *ventanaOutput, *ventanaInput;
@@ -19,13 +21,14 @@ char name[100], to_name[140] , to_server[140];
 
 // Cierra el cliente.
 void close_client(){
-	close(3);
-	close(4);
+	close(name_dec);
+	close(server_dec);
 	if ( unlink(to_name) == 1 ) { perror("unlink closing");}
 	if ( unlink(to_server) == 1 ) { perror("unlink closing server");}
 	endwin();
 }
 
+// Identifica el cliente ante el servidor.
 void send_hello(char * pipe){
 	int fd, messagelen;
  	char message[150];
@@ -46,7 +49,7 @@ void send_hello(char * pipe){
 
 	// Crear pipe para enviar
         if ( mknod(to_server, S_IFIFO, 0) == 1 ) { perror("error mknod send");}
-        if ( chmod(to_server, 0660) == 1 ) { perror("error mknod send");}
+        if ( chmod(to_server, 0660) == 1 ) { perror("error chmod send");}
 	sprintf(message, "New user: %s", name);
 	
 	// Conexion con pipe de entrada al servidor
@@ -63,6 +66,7 @@ void send_hello(char * pipe){
 	do { server_dec = open(to_server, O_WRONLY | O_NONBLOCK); } while (server_dec == -1);
 }
 
+// Limpiar ventana de input.
 void limpiarVentanaInput(){
         wclear(ventanaInput);
         mvwhline(ventanaInput, 0, 0, 0, COLS);
@@ -70,6 +74,7 @@ void limpiarVentanaInput(){
         wrefresh(ventanaInput);
 }
 
+// Enfoca el cursor en la ventana de input.
 void enfocarInput(){
 	int x,y;
 	getyx(ventanaInput, y,x);
@@ -77,6 +82,7 @@ void enfocarInput(){
 	wrefresh(ventanaInput);
 }
 
+// Manejador de interrupcion (CTRL - C)
 void term_handler(){
 	char tmp[50];
 	sprintf(tmp, "%s -salir", name);
@@ -88,7 +94,7 @@ void term_handler(){
 
 void main(int argc, char * argv[]){
 	// Declaraciones
-	int max_desc, desc[2];
+	int max_desc;
 	char message[306], command[256],pipe[100], cmd[200];
 	char buffer[200] = "", c[2] = {0,'\0'};
 	fd_set lectura;
@@ -100,7 +106,14 @@ void main(int argc, char * argv[]){
 	if (signal(SIGINT, term_handler) == SIG_ERR) {
         	printf("Ocurrio un error al colocar la signal.\n");
     	}
-
+	
+	// Verificar tamanio del terminal
+  	if (LINES < LINES_MIN || COLS < COLS_MIN) {
+        	endwin(); // Restaurar la operación del terminal a modo normal
+        	printf("El terminal es muy pequeño para correr este programa.\n");
+        	exit(0);
+    	}
+	
 	// Interfaz.
 	initscr();
 	alto = LINES - ALTO;
@@ -118,7 +131,7 @@ void main(int argc, char * argv[]){
 
 	// Obtener usuario.
 	strcpy(name,getlogin());
-	if ( name == "" ) { perror("Error getting name"); }	
+	if ( strcmp(name, "" ) == 0 ) { perror("Error getting name"); }	
 
 	// Obtener pipe.
 	strcpy(pipe, DEFAULT_PIPE);
@@ -140,11 +153,10 @@ void main(int argc, char * argv[]){
 	enfocarInput();
 	
 	// Inicializando select
-	desc[0] = name_dec;
 	FD_ZERO(&lectura);
-	FD_SET(desc[0], &lectura);
-	max_desc = desc[0]+1;
-
+	FD_SET(name_dec, &lectura);
+	max_desc = name_dec+1;
+	
 	// Inicializando manejador de input.
 	while(!salir){
 		tv.tv_sec = 0;
@@ -152,33 +164,32 @@ void main(int argc, char * argv[]){
 		c_lectura = lectura;
 		if (select(max_desc, &c_lectura, NULL, NULL, &tv) < 0)
 			perror("Error en el select");
-		for (i = 0; i < 1; i++){
-			if( FD_ISSET(desc[i], &c_lectura)){
-				status = read(desc[i], message, sizeof(message));
-				if (status){
-					// Servidor esta lleno
-					if ( strcmp(message,"NO_MORE_ROOM") == 0 ) {
-						close_client();
-						printf("El servidor esta lleno, intente de nuevo.\n");
-						exit(1);
-					}
-					// Nombre ya utilizado
-					if ( strcmp(message,"NAME_USED") == 0 ) {
-                                                close_client();
-                                                printf("Ya existe alguien en el chat con ese nombre.\n");
-                                                exit(1);
-                                        }
-					wprintw(ventanaOutput, "%s", message);
-					wrefresh(ventanaOutput);
-					enfocarInput();
-				} else {
+		if( FD_ISSET(name_dec, &c_lectura)){
+			status = read(name_dec, message, sizeof(message));
+			if (status){
+				// Servidor esta lleno
+				if ( strcmp(message,"NO_MORE_ROOM") == 0 ) {
 					close_client();
-					printf("El sevidor se ha cerrado.\n");
+					printf("El servidor esta lleno, intente de nuevo.\n");
 					exit(1);
 				}
-				memset(message, 0, sizeof(message));
-			}	
-		}
+				// Nombre ya utilizado
+				if ( strcmp(message,"NAME_USED") == 0 ) {
+					close_client();
+					printf("Ya existe alguien en el chat con ese nombre.\n");
+					exit(1);
+				}
+				wprintw(ventanaOutput, "%s", message);
+				wrefresh(ventanaOutput);
+				enfocarInput();
+			} else {
+				close_client();
+				printf("El sevidor se ha cerrado.\n");
+				exit(1);
+			}
+			memset(message, 0, sizeof(message));
+		}	
+		
 
 		//  Manejador de input por teclado.			
 		c[0] = wgetch(ventanaInput);
@@ -189,7 +200,7 @@ void main(int argc, char * argv[]){
 				if ( write(server_dec, command, strlen(command)+1) == -1 ) { perror("write sending_message"); }
 				wprintw(ventanaOutput, "<%s> %s\n", name, buffer);
 				wrefresh(ventanaOutput);
-				sscanf(buffer, "%s %s", cmd, buffer);
+				sscanf(buffer, "%s %[^\t]", cmd, buffer);
 				salir = strcmp(cmd,"-salir") == 0;
 				memset(buffer,0,200);
 				limpiarVentanaInput();

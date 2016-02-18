@@ -1,16 +1,26 @@
 # Operativos
-Chat para linux en C / Utilizando PIPES para la comunicacion entre procesos, y ncurses. Modelo Cliente - Servidor
+Chat para linux en C
 
-Make:
-gcc client.c -o client -lncurses
-gcc serverP.c -o serverP
+Utilizando PIPES para la comunicacion entre procesos, y ncurses. Modelo Cliente - Servidor
 
-Dependencias:
+## Make:
+```
+make all
+make client
+make server
+make clean
+```
+
+## Dependencias:
+```
 sudo apt-get install ncurses
+```
 
-Comandos del cliente:
--quien
--estoy [estado]
--escribir [target] mensaje
-[mensaje]
--salir
+## Comandos del cliente:
+| Comandos | Informacion |
+| --- | --- |
+| -quien | Listar los usuarios conectados. |
+| -estoy [estado] | Cambiar de estado en el chat. |
+| -escribir [target] mensaje | Escribir un mensaje al usuario [target] |
+| [mensaje] | Si anteriormente ha escrito un mensaje a un usuiario, puede omitir el -escribir |
+| -salir | Cierra el cliente |
