@@ -15,6 +15,7 @@
 #define SERV_USR lista[0]
 #define MAX_CLIENT 21
 #define MAX(x,y) (x > y ? x : y)
+#define MAX_MESSAGE_LEN 256
 
 char upipe[100];
 
@@ -78,7 +79,7 @@ int accept_connection(char * msg, struct User * lista ){
 // Responde a los cambios de notificaciones y desconexion de los usuarios
 void notificar_estado(char * msg, struct User * user, struct User lista[MAX_CLIENT]){
 	int i,file, disconnect;
-	char notificacion[256];
+	char notificacion[MAX_MESSAGE_LEN];
 	disconnect = strcmp(msg,"se ha desconectado.") == 0;
 	for ( i = 0 ; i < MAX_CLIENT ; i ++ ){
 		if ( lista[i].last_w == user ) {
@@ -94,7 +95,7 @@ void notificar_estado(char * msg, struct User * user, struct User lista[MAX_CLIE
 
 // Responde al comando -quienes
 void send_quienes(struct User * user, struct User lista[MAX_CLIENT]){
-	char msg[256], tmp[150], bigger[2000] = "  -- Usuarios conectados --\n\n";
+	char msg[MAX_MESSAGE_LEN], tmp[150], bigger[2000] = "  -- Usuarios conectados --\n\n";
 	int i;
 	printf("Sending connected users to %s\n", user->name);
 	for (i = 0; i < MAX_CLIENT; i++){
@@ -108,7 +109,7 @@ void send_quienes(struct User * user, struct User lista[MAX_CLIENT]){
 
 void send_message_global(char * msg, struct User * user, struct User lista[MAX_CLIENT]){
 	int i, file;
-	char mensaje[256], tmp[150];
+	char mensaje[MAX_MESSAGE_LEN], tmp[150];
 	for(i=0; i < MAX_CLIENT; i++){
 		if (strcmp(lista[i].name,"") != 0 && strcmp(lista[i].name,SERV_NAME) != 0){
                         send_message(msg, &lista[i], lista[0]);
@@ -119,7 +120,7 @@ void send_message_global(char * msg, struct User * user, struct User lista[MAX_C
 // Facilita el envio de mensajes entre usuarios
 int send_message(char * msg, struct User * user, struct User from){
 	int file;
-	char mensaje[256];
+	char mensaje[MAX_MESSAGE_LEN];
 	char error[50];
 	if ( user != NULL) {
 		sprintf(mensaje, "[%s]: %s", from.name, msg);
@@ -153,7 +154,7 @@ void term_handler(){
 
 void main(int argc, char * argv []){
 	int file,status,i,j,max_desc;
-	char msg[256],cmd[256],who[50],target[50],* tmp;
+	char msg[MAX_MESSAGE_LEN],cmd[MAX_MESSAGE_LEN],who[50],target[50],* tmp;
 	struct User user_list[MAX_CLIENT];
 	struct User * who_usr, * target_usr;
 	fd_set lectura;
@@ -169,7 +170,12 @@ void main(int argc, char * argv []){
 	
 	// Revisando pipe
 	if (argc > 1){
-		strcpy(upipe, argv[1]);
+		if ( strlen(argv[1]) <= 99 ) { 
+			strcpy(upipe, argv[1]);
+		} else { 
+			printf("El path del pipe especificado es muy largo.");
+			exit(1);
+		}
 	} else {
 		strcpy(upipe, DEFAULT_PIPE);
 	}
@@ -211,7 +217,7 @@ void main(int argc, char * argv []){
 		for (i = 0; i < MAX_CLIENT; i++){
 			if (strcmp(user_list[i].name, "") != 0) { 
 			if (FD_ISSET(user_list[i].to_server, &c_lectura)){
-				memset(msg, 0, 256);
+				memset(msg, 0, sizeof(msg));
 				status = readLine(user_list[i].to_server,msg);
 				if (status){
 				if ( i == 0 ) {
@@ -235,7 +241,7 @@ void main(int argc, char * argv []){
 						target_usr = get_user(target, user_list);
 						if (i >= 4){
 							send_message(msg, target_usr, *who_usr);
-							memset(msg,0,100);
+							memset(msg,0,sizeof(msg));
 						};
                                                 who_usr->last_w = target_usr;
 
@@ -263,7 +269,7 @@ void main(int argc, char * argv []){
 							if ( who_usr->last_w != NULL){
 								send_message(cmd, who_usr->last_w, *who_usr);
 							}
-							memset(cmd,0,256);
+							memset(cmd,0,sizeof(cmd));
 						}
 					}
 				}

@@ -14,6 +14,8 @@
 #define LINES_MIN 10
 #define COLS_MIN 25
 #define ALTO 4
+#define MAX_MESSAGE_LEN 256
+
 
 WINDOW *ventanaOutput, *ventanaInput;
 int name_dec, server_dec;
@@ -95,8 +97,8 @@ void term_handler(){
 void main(int argc, char * argv[]){
 	// Declaraciones
 	int max_desc;
-	char message[306], command[256],pipe[100], cmd[200];
-	char buffer[200] = "", c[2] = {0,'\0'};
+	char message[306], command[MAX_MESSAGE_LEN],pipe[100], cmd[MAX_MESSAGE_LEN];
+	char buffer[MAX_MESSAGE_LEN] = "", c[2] = {0,'\0'};
 	fd_set lectura;
 	fd_set c_lectura;
 	struct timeval tv;
@@ -106,14 +108,7 @@ void main(int argc, char * argv[]){
 	if (signal(SIGINT, term_handler) == SIG_ERR) {
         	printf("Ocurrio un error al colocar la signal.\n");
     	}
-	
-	// Verificar tamanio del terminal
-  	if (LINES < LINES_MIN || COLS < COLS_MIN) {
-        	endwin(); // Restaurar la operación del terminal a modo normal
-        	printf("El terminal es muy pequeño para correr este programa.\n");
-        	exit(0);
-    	}
-	
+		
 	// Interfaz.
 	initscr();
 	alto = LINES - ALTO;
@@ -129,6 +124,13 @@ void main(int argc, char * argv[]){
 	limpiarVentanaInput();
 	// Fin Interfaz
 
+	// Verificar tamanio del terminal
+  	if (LINES < LINES_MIN || COLS < COLS_MIN) {
+        	endwin(); // Restaurar la operación del terminal a modo normal
+        	printf("El terminal es muy pequeño para correr este programa.\n");
+        	exit(0);
+    	}
+
 	// Obtener usuario.
 	strcpy(name,getlogin());
 	if ( strcmp(name, "" ) == 0 ) { perror("Error getting name"); }	
@@ -138,10 +140,22 @@ void main(int argc, char * argv[]){
 	if (argc > 1) {
 		for (i = 1; i < argc; i ++){
 			if ( strcmp(argv[i], "-p") == 0) {
-				strcpy(pipe, argv[i+1]);
-				i++;
+				if ( strlen(argv[i]) <= 99 ) {
+					strcpy(pipe, argv[i+1]);
+					i++;
+				} else { 
+					endwin();
+					printf("El path del pipe escogido es muy largo, debe ser menor a 99 caracteres.");
+					exit(1);
+				}
 			} else {
-				strcpy(name,argv[i]);
+				if ( strlen(argv[i]) <= 99 ) {
+					strcpy(name,argv[i]);
+				} else {
+					endwin();
+					printf("El nombre escogido es muy largo, debe ser menor a 99 caracteres.");
+					exit(1);
+				}
 			}
 		}
 	}
@@ -202,7 +216,7 @@ void main(int argc, char * argv[]){
 				wrefresh(ventanaOutput);
 				sscanf(buffer, "%s %[^\t]", cmd, buffer);
 				salir = strcmp(cmd,"-salir") == 0;
-				memset(buffer,0,200);
+				memset(buffer,0,sizeof(buffer));
 				limpiarVentanaInput();
 				enfocarInput();
 			}
@@ -218,7 +232,7 @@ void main(int argc, char * argv[]){
 			wgetch(ventanaInput);
 			wgetch(ventanaInput);
 		} else {
-			if (strlen(buffer) < 256) {
+			if (strlen(buffer) < MAX_MESSAGE_LEN) {
 			if (c[0] != ERR){
 			// Formar mensaje.
 				getyx(ventanaInput,y,x);
