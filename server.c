@@ -6,12 +6,12 @@
 #include <string.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include "serverP.h"
+#include "server.h"
 #include <libgen.h>
 
 #define SERV_NAME "Server"
 #define PIPE_COM "/tmp/12-11006"
-#define DEFAULT_PIPE "server"
+#define DEFAULT_PIPE "server_c"
 #define SERV_USR lista[0]
 #define MAX_CLIENT 3
 #define MAX(x,y) (x > y ? x : y)
@@ -30,7 +30,6 @@ return(n > 0);
 
 // Envia mensaje en casos especiales, seguido de una desconexion {NAME_USED, NO_MORE_ROOM}
 void send_message_close(int t1, int t2, char * msg){
-	printf("ALLALA\n");
 	if ( write(t1, msg, strlen(msg)+1) == -1 ) { perror("special_message write"); };
 	if ( close(t1) == -1 ) { perror("special_message close t1"); };
 	if ( close(t2) == -1 ) { perror("special_message close t2"); };
@@ -166,6 +165,7 @@ void main(int argc, char * argv []){
         if (signal(SIGINT, term_handler) == SIG_ERR) {
                 printf("Ocurrio un error al colocar la signal.\n");
         }
+	signal(SIGPIPE, SIG_IGN); 
 	
 	// Revisando pipe
 	if (argc > 1){
@@ -211,7 +211,7 @@ void main(int argc, char * argv []){
 		for (i = 0; i < MAX_CLIENT; i++){
 			if (strcmp(user_list[i].name, "") != 0) { 
 			if (FD_ISSET(user_list[i].to_server, &c_lectura)){
-				memset(msg, 0, sizeof(msg));
+				memset(msg, 0, 256);
 				status = readLine(user_list[i].to_server,msg);
 				if (status){
 				if ( i == 0 ) {
@@ -258,9 +258,12 @@ void main(int argc, char * argv []){
 					} else {
 						// Mensaje al ultimo usuario
 						sscanf(msg, "%s %[^\t]",who, cmd);
-						printf("(%d) %s: %s", who_usr->index,who,cmd);
-						if ( who_usr->last_w != NULL){
-							send_message(cmd, who_usr->last_w, *who_usr);
+						if ( strcmp(cmd,"") != 0) {
+							printf("(%d) %s: %s", who_usr->index,who,cmd);
+							if ( who_usr->last_w != NULL){
+								send_message(cmd, who_usr->last_w, *who_usr);
+							}
+							memset(cmd,0,256);
 						}
 					}
 				}

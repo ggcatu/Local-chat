@@ -10,16 +10,17 @@
 #include <sys/types.h>
 
 #define PIPE_COM "/tmp/12-11006"
-#define DEFAULT_PIPE "server"
+#define DEFAULT_PIPE "server_c"
 #define ALTO 4
 
 WINDOW *ventanaOutput, *ventanaInput;
 int name_dec, server_dec;
 char name[100], to_name[140] , to_server[140];
 
-
 // Cierra el cliente.
 void close_client(){
+	close(3);
+	close(4);
 	if ( unlink(to_name) == 1 ) { perror("unlink closing");}
 	if ( unlink(to_server) == 1 ) { perror("unlink closing server");}
 	endwin();
@@ -88,7 +89,7 @@ void term_handler(){
 void main(int argc, char * argv[]){
 	// Declaraciones
 	int max_desc, desc[2];
-	char message[306], command[256],pipe[100];
+	char message[306], command[256],pipe[100], cmd[200];
 	char buffer[200] = "", c[2] = {0,'\0'};
 	fd_set lectura;
 	fd_set c_lectura;
@@ -183,17 +184,21 @@ void main(int argc, char * argv[]){
 		c[0] = wgetch(ventanaInput);
                 if (c[0] == '\r'){
 			// Es un mensaje al servidor.
-			sprintf(command, "%s %s\n", name, buffer);
-			if ( write(server_dec, command, strlen(command)+1) == -1 ) { perror("write sending_message"); }
-                        wprintw(ventanaOutput, "<%s> %s\n", name, buffer);
-                        wrefresh(ventanaOutput);
-			salir = strcmp(buffer,"-salir") == 0;
-                        memset(buffer,0,200);
-                        limpiarVentanaInput();
-			enfocarInput();
+			if ( buffer[0] != '\0')  {
+				sprintf(command, "%s %s\n", name, buffer);
+				if ( write(server_dec, command, strlen(command)+1) == -1 ) { perror("write sending_message"); }
+				wprintw(ventanaOutput, "<%s> %s\n", name, buffer);
+				wrefresh(ventanaOutput);
+				sscanf(buffer, "%s %s", cmd, buffer);
+				salir = strcmp(cmd,"-salir") == 0;
+				memset(buffer,0,200);
+				limpiarVentanaInput();
+				enfocarInput();
+			}
                 } else if (c[0] == 127) {
 			// Se quiere borrar un caracter.
 			getyx(ventanaInput,y,x);
+			if (x == 0) { if (y > 1){ x = COLS;  --y; } } 
 			wmove(ventanaInput,y,--x);
 			buffer[(y-1)*COLS+x] = '\0';
 			wdelch(ventanaInput);
@@ -201,7 +206,8 @@ void main(int argc, char * argv[]){
 			// Deshabilita las flechas del teclado.
 			wgetch(ventanaInput);
 			wgetch(ventanaInput);
-		} else {			
+		} else {
+			if (strlen(buffer) < 256) {
 			if (c[0] != ERR){
 			// Formar mensaje.
 				getyx(ventanaInput,y,x);
@@ -209,7 +215,8 @@ void main(int argc, char * argv[]){
 				wmove(ventanaInput,y,++x);
 				wrefresh(ventanaInput);
 				strcat(buffer,c);
-			} 
+			}
+		 	}
                 }
 	}
 
