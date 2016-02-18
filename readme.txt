@@ -28,3 +28,6 @@ Por su lado el servidor, una vez iniciado, crea el pipe para recibir conexiones 
 y crea un usuario "Servidor" que facilita el envio de mensajes por parte del servidor, y 
 facilita la utilizacion del select.
 
+Por otro lado para la notificar le desconexion de los clientes, se tomo la misma convencion
+que con el cambio de estado; se notifica a los usuarios que te por ultima vez escribieron al
+usuario desconectado.
