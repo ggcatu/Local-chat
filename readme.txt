@@ -29,7 +29,7 @@ Se establecieron algunos límites para el cliente:
 Los mismos límites aplican para el servidor.
 
 Del lado del servidor, una vez iniciado, crea el pipe para recibir conexiones entrantes,
-y crea un usuario "Servidor" que facilita el envío de mensajes por parte del servidor y 
+creando un usuario "Servidor" que facilita el envío de mensajes por parte del servidor y 
 facilita la utilizacion del select.
 
 Por otro lado, para la notificar de la desconexión de los clientes se tomó la misma convención
