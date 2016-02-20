@@ -1,3 +1,20 @@
+/*
+Sistemas de Operacion I (CI-3825)
+
+Proyecto I: Chat
+
+Autores:
+Guillermo Betancourt, carnet 11-10103
+Gabriel Giménez, carnet 12-11006
+
+server.c:
+Contiene la logica principal del servidor.
+El servidor genera un pipe de conexiones entrantes, por donde espera
+la conexion de los clientes. Una vez verificado que se puede aceptar el mismo
+se procede a generar su estructura Usuario y colocarla dentro del arreglo
+de usuarios actualmente conectados.
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -14,143 +31,15 @@
 #define DEFAULT_PIPE "server_c"
 #define SERV_USR lista[0]
 #define MAX_CLIENT 21
+#define MAX_PIPE_LEN
 #define MAX(x,y) (x > y ? x : y)
 #define MAX_MESSAGE_LEN 256
+#define MAX_PIPE_LEN 100
+#define MAX_CLIENT_NAME 100
+#define MAX_FULLM_LEN (MAX_NAME_LEN + MAX_MESSAGE_LEN)
 
-char upipe[100];
-
-// Sacado de las laminas de la profesora.
-int readLine(int fd, char *str) {
-       int n;
-       do {
-               n = read(fd, str, 1);
-       } while(n > 0 && *(str++) != '\0');
- 
-return(n > 0);
-} 
-
-// Envia mensaje en casos especiales, seguido de una desconexion {NAME_USED, NO_MORE_ROOM}
-void send_message_close(int t1, int t2, char * msg){
-	if ( write(t1, msg, strlen(msg)+1) == -1 ) { perror("special_message write"); };
-	if ( close(t1) == -1 ) { perror("special_message close t1"); };
-	if ( close(t2) == -1 ) { perror("special_message close t2"); };
-}
-
-// Maneja las conexiones entrantes por el pipe nominal server.
-int accept_connection(char * msg, struct User * lista ){
-	char uname[50], tmp[100];
-	int i, j = -1, t1, t2;
-	sscanf(msg, "New user: %s", uname);
-        printf("Nuevo usuario: %s\n", uname);
-	sprintf(tmp, "%s/%s", PIPE_COM, uname);
-	t1 =  open(tmp, O_WRONLY | O_NDELAY) ; if ( t1 == -1 ) { perror("error accepting WRITE"); }
-	sprintf(tmp, "%s_serv", tmp);
-	t2 = open(tmp, O_RDONLY | O_NDELAY) ; if ( t2 == -1 ) { perror("error accepting READ"); }
-	for( i = 1; i < MAX_CLIENT; i++ ) {
-		// El nombre ya esta utilizado
-		if ( strcmp(lista[i].name, uname) == 0 ) {
-			send_message_close(t1,t2,"NAME_USED");
-			printf("Refusing: %s Name already in use\n.", uname);
-			return -1;
-		}
-		// Slot vacio
-		if ( strcmp(lista[i].name,"") == 0 ) {
-			if ( j == -1 ) j = i;
-		}
-	}
-	if (j == -1){
-		// Servidor full
-		send_message_close(t1,t2,"NO_MORE_ROOM");
-		printf("Refusing: %s There are no more slots\n", uname);
-		return -1;
-	} else {
-		// Aceptando conexion
-		printf("Accepting: Welcome! %s\n", uname);
-		strcpy((&lista[j])->name, uname);
-		lista[j].to_name =  t1;
-		lista[j].to_server = t2;
-		strcpy((&lista[j])->status, "Disponible");
-		(&lista[j])->last_w = NULL;
-		(&lista[j])->index = j;
-		return j;	
-	}
-}
-
-// Responde a los cambios de notificaciones y desconexion de los usuarios
-void notificar_estado(char * msg, struct User * user, struct User lista[MAX_CLIENT]){
-	int i,file, disconnect;
-	char notificacion[MAX_MESSAGE_LEN];
-	disconnect = strcmp(msg,"se ha desconectado.") == 0;
-	for ( i = 0 ; i < MAX_CLIENT ; i ++ ){
-		if ( lista[i].last_w == user ) {
-			if (!disconnect) {
-				sprintf(notificacion, "%s %s [%s]\n", user->name, "ha cambiado su estado a", msg);
-			} else {
-				sprintf(notificacion, "%s %s\n", user->name, msg);
-			}
-			send_message(notificacion, &lista[i], SERV_USR);
-		}
-	}
-}
-
-// Responde al comando -quienes
-void send_quienes(struct User * user, struct User lista[MAX_CLIENT]){
-	char msg[MAX_MESSAGE_LEN], tmp[150], bigger[2000] = "  -- Usuarios conectados --\n\n";
-	int i;
-	printf("Sending connected users to %s\n", user->name);
-	for (i = 0; i < MAX_CLIENT; i++){
-		if (strcmp(lista[i].name,"") != 0 && strcmp(lista[i].name,SERV_NAME) != 0){
-			sprintf(msg,"%s - %s\n",lista[i].name,lista[i].status);
-			strcat(bigger, msg);
-		}
-	}
-	send_message(bigger, user, lista[0]);
-}
-
-void send_message_global(char * msg, struct User * user, struct User lista[MAX_CLIENT]){
-	int i, file;
-	char mensaje[MAX_MESSAGE_LEN], tmp[150];
-	for(i=0; i < MAX_CLIENT; i++){
-		if (strcmp(lista[i].name,"") != 0 && strcmp(lista[i].name,SERV_NAME) != 0){
-                        send_message(msg, &lista[i], lista[0]);
-                }
-	}
-}
-
-// Facilita el envio de mensajes entre usuarios
-int send_message(char * msg, struct User * user, struct User from){
-	int file;
-	char mensaje[MAX_MESSAGE_LEN];
-	char error[50];
-	if ( user != NULL) {
-		sprintf(mensaje, "[%s]: %s", from.name, msg);
-		if (  write(user->to_name, mensaje, strlen(mensaje)+1) == -1 ) { perror("write send_message") ;};
-		printf("Enviando mensaje a %s\n", user->name);
-		return 1;
-	} else {
-		if ( from.name != SERV_NAME ) {
-			sprintf(mensaje, "%s", "El usuario no esta conectado.\n");
-			if ( write(from.to_name, mensaje, strlen(mensaje)+1) == -1 ) { perror ("write send_message_not"); };
-		}
-	}
-	return 0;
-}
-
-// Dado un nombre, devuelve el objeto usuario correspondiente
-struct User * get_user(char * uname, struct User lista[MAX_CLIENT]){
-	int i;
-	for ( i = 1; i < MAX_CLIENT; i++ ){
-		if (strcmp(lista[i].name, uname) == 0){
-			return &lista[i];
-		} 
-	}
-	return NULL;
-} 
-
-void term_handler(){
-	unlink(upipe);
-	exit(0);
-}
+// Declaraciones globales, una vez inicializados no son cambiados.
+char upipe[MAX_PIPE_LEN];
 
 void main(int argc, char * argv []){
 	int file,status,i,j,max_desc;
@@ -170,7 +59,7 @@ void main(int argc, char * argv []){
 	
 	// Revisando pipe
 	if (argc > 1){
-		if ( strlen(argv[1]) <= 99 ) { 
+		if ( strlen(argv[1]) <= MAX_PIPE_LEN - 1) { 
 			strcpy(upipe, argv[1]);
 		} else { 
 			printf("El path del pipe especificado es muy largo.");
@@ -279,4 +168,139 @@ void main(int argc, char * argv []){
 		}
 	}
 	unlink(upipe);
+}
+
+// Sacado de las laminas de la profesora.
+int readLine(int fd, char *str) {
+       int n;
+       do {
+               n = read(fd, str, 1);
+       } while(n > 0 && *(str++) != '\0');
+ 
+return(n > 0);
+} 
+
+// Envia mensaje en casos especiales, seguido de una desconexion {NAME_USED, NO_MORE_ROOM}
+void send_message_close(int t1, int t2, char * msg){
+	if ( write(t1, msg, strlen(msg)+1) == -1 ) { perror("special_message write"); };
+	if ( close(t1) == -1 ) { perror("special_message close t1"); };
+	if ( close(t2) == -1 ) { perror("special_message close t2"); };
+}
+
+// Maneja las conexiones entrantes por el pipe nominal server.
+int accept_connection(char * msg, struct User * lista ){
+	char uname[MAX_CLIENT_NAME], tmp[100];
+	int i, j = -1, t1, t2;
+	sscanf(msg, "New user: %s", uname);
+        printf("Nuevo usuario: %s\n", uname);
+	sprintf(tmp, "%s/%s", PIPE_COM, uname);
+	t1 =  open(tmp, O_WRONLY | O_NDELAY) ; if ( t1 == -1 ) { perror("error accepting WRITE"); }
+	sprintf(tmp, "%s_serv", tmp);
+	t2 = open(tmp, O_RDONLY | O_NDELAY) ; if ( t2 == -1 ) { perror("error accepting READ"); }
+	for( i = 1; i < MAX_CLIENT; i++ ) {
+		// El nombre ya esta utilizado
+		if ( strcmp(lista[i].name, uname) == 0 ) {
+			send_message_close(t1,t2,"NAME_USED");
+			printf("Refusing: %s Name already in use\n.", uname);
+			return -1;
+		}
+		// Slot vacio
+		if ( strcmp(lista[i].name,"") == 0 ) {
+			if ( j == -1 ) j = i;
+		}
+	}
+	if (j == -1){
+		// Servidor full
+		send_message_close(t1,t2,"NO_MORE_ROOM");
+		printf("Refusing: %s There are no more slots\n", uname);
+		return -1;
+	} else {
+		// Aceptando conexion
+		printf("Accepting: Welcome! %s\n", uname);
+		strcpy((&lista[j])->name, uname);
+		lista[j].to_name =  t1;
+		lista[j].to_server = t2;
+		strcpy((&lista[j])->status, "Disponible");
+		(&lista[j])->last_w = NULL;
+		(&lista[j])->index = j;
+		return j;	
+	}
+}
+
+// Responde a los cambios de notificaciones y desconexion de los usuarios
+void notificar_estado(char * msg, struct User * user, struct User lista[MAX_CLIENT]){
+	int i,file, disconnect;
+	char notificacion[MAX_MESSAGE_LEN];
+	disconnect = strcmp(msg,"se ha desconectado.") == 0;
+	for ( i = 0 ; i < MAX_CLIENT ; i ++ ){
+		if ( lista[i].last_w == user ) {
+			if (!disconnect) {
+				sprintf(notificacion, "%s %s [%s]\n", user->name, "ha cambiado su estado a", msg);
+			} else {
+				sprintf(notificacion, "%s %s\n", user->name, msg);
+			}
+			send_message(notificacion, &lista[i], SERV_USR);
+		}
+	}
+}
+
+// Responde al comando -quienes
+void send_quienes(struct User * user, struct User lista[MAX_CLIENT]){
+	char msg[MAX_MESSAGE_LEN], tmp[150], bigger[2000] = "  -- Usuarios conectados --\n\n";
+	int i;
+	printf("Sending connected users to %s\n", user->name);
+	for (i = 0; i < MAX_CLIENT; i++){
+		if (strcmp(lista[i].name,"") != 0 && strcmp(lista[i].name,SERV_NAME) != 0){
+			sprintf(msg,"%s - %s\n",lista[i].name,lista[i].status);
+			strcat(bigger, msg);
+		}
+	}
+	send_message(bigger, user, lista[0]);
+}
+
+// Envia un mensaje global, por ejemplo cuando un usuario se conecta
+void send_message_global(char * msg, struct User * user, struct User lista[MAX_CLIENT]){
+	int i, file;
+	char mensaje[MAX_MESSAGE_LEN], tmp[150];
+	for(i=0; i < MAX_CLIENT; i++){
+		if (strcmp(lista[i].name,"") != 0 && strcmp(lista[i].name,SERV_NAME) != 0){
+                        send_message(msg, &lista[i], lista[0]);
+                }
+	}
+}
+
+// Facilita el envio de mensajes entre usuarios
+int send_message(char * msg, struct User * user, struct User from){
+	int file;
+	char mensaje[MAX_MESSAGE_LEN];
+	char error[50];
+	if ( user != NULL) {
+		sprintf(mensaje, "[%s]: %s", from.name, msg);
+		if (  write(user->to_name, mensaje, strlen(mensaje)+1) == -1 ) { perror("write send_message") ;};
+		printf("Enviando mensaje a %s\n", user->name);
+		return 1;
+	} else {
+		if ( from.name != SERV_NAME ) {
+			sprintf(mensaje, "%s", "El usuario no esta conectado.\n");
+			if ( write(from.to_name, mensaje, strlen(mensaje)+1) == -1 ) { perror ("write send_message_not"); };
+		}
+	}
+	return 0;
+}
+
+// Dado un nombre, devuelve el objeto usuario correspondiente
+struct User * get_user(char * uname, struct User lista[MAX_CLIENT]){
+	int i;
+	for ( i = 1; i < MAX_CLIENT; i++ ){
+		if (strcmp(lista[i].name, uname) == 0){
+			return &lista[i];
+		} 
+	}
+	return NULL;
+} 
+
+// Manejador de senial SIGPIPE
+void term_handler(){
+	unlink(upipe);
+	exit(0);
 }
