@@ -24,7 +24,7 @@ Se establecieron algunos límites para el cliente:
 
 1) Cada cliente puede tener un nombre máximo de 99 caracteres.
 2) El path máximo para un pipe son 99 caracteres.
-#) El mensaje más largo a enviar es de 256 caracteres.
+3) El mensaje más largo a enviar es de 256 caracteres.
 
 Los mismos límites aplican para el servidor.
 
