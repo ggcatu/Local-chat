@@ -11,7 +11,7 @@ El cliente al momento de ejecutarse envía al servidor, a través del pipe de co
 entrantes, su nombre para que el servidor le asigne posteriormente su puesto correspondiente.
 
 Como convención, se toma que el servidor se comunicará con el cliente a través de un pipe
-con el mismo nombre que el nombre del cliente, y el mismo se comunicará con el servidor con un pipe
+con el mismo nombre que el nombre del cliente, y este último se comunicará a su vez con el servidor con un pipe
 con el mismo nombre que el nombre del cliente seguido del postfijo "_serv".
 
 Por convención, así mismo, el cliente se identifica con el servidor por un pipe llamado 
