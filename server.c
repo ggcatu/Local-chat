@@ -41,9 +41,12 @@ de usuarios actualmente conectados.
 // Declaraciones globales, una vez inicializados no son cambiados.
 char upipe[MAX_PIPE_LEN];
 
+// Codigo principal del servidor
 void main(int argc, char * argv []){
+	
+	// Declaraciones
 	int file,status,i,j,max_desc;
-	char msg[MAX_MESSAGE_LEN],cmd[MAX_MESSAGE_LEN],who[50],target[50],* tmp;
+	char msg[MAX_MESSAGE_LEN],cmd[MAX_MESSAGE_LEN],who[MAX_CLIENT_NAME],target[MAX_CLIENT_NAME],* tmp;
 	struct User user_list[MAX_CLIENT];
 	struct User * who_usr, * target_usr;
 	fd_set lectura;
@@ -52,12 +55,13 @@ void main(int argc, char * argv []){
 	struct stat st = {0};
 	
 	// Inicializar senales.
-        if (signal(SIGINT, term_handler) == SIG_ERR) {
-                printf("Ocurrio un error al colocar la signal.\n");
+        if (signal(SIGINT, term_handler) == SIG_ERR  || 
+		signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+                	printf("Ocurrio un error al colocar la signal.\n");
+			exit(1);
         }
-	signal(SIGPIPE, SIG_IGN); 
 	
-	// Revisando pipe
+	// Revisando pipe por argumento
 	if (argc > 1){
 		if ( strlen(argv[1]) <= MAX_PIPE_LEN - 1) { 
 			strcpy(upipe, argv[1]);
@@ -74,7 +78,7 @@ void main(int argc, char * argv []){
 		strcpy(user_list[i].name,"\0");
 	}
 	
-	printf("Starting server..\n");
+	printf("Iniciando servidor..\n");
 	
 	// Inicializando pipes
 	tmp = strdup(upipe);
@@ -82,16 +86,19 @@ void main(int argc, char * argv []){
 	if (stat( tmp , &st) == -1) {
                 if ( mkdir( tmp , 0777) == -1 ){
 			perror("MKDIR: ");
+			exit(1);
 		}
         }
-	// No se verifica pues esta hecho para que falle la mayoria de las veces.
+
+	// No se verifica el unlink pues es en caso de que se 
+	// encuentre uno ya creado con el mismo nombre
 	unlink(upipe);
-	if ( mknod(upipe, S_IFIFO, 0) == -1) perror("MKNOD: ");
-	if ( chmod(upipe, 0660)  == -1 ) perror("CHMOD: ");
+	if ( mknod(upipe, S_IFIFO, 0) == -1) { perror("MKNOD: "), exit(1) };
+	if ( chmod(upipe, 0660)  == -1 ) { perror("CHMOD: "), exit(1) };
 	
 	// Inicializando cliente servidor
 	strcpy(user_list[0].name, SERV_NAME);
-	printf("I am waiting connections.\n");
+	printf("Esperando conexiones.\n");
 	
 	// Inicializando select
 	user_list[0].to_server = open(upipe, O_RDONLY | O_NONBLOCK);
@@ -114,7 +121,9 @@ void main(int argc, char * argv []){
 					j = accept_connection(msg,user_list);
 					if( j >= 0 ) {
 						FD_SET(user_list[j].to_server, &lectura);
-						if ( max_desc != MAX(max_desc, user_list[j].to_server )){ max_desc = user_list[j].to_server + 1; };
+						if ( max_desc != MAX(max_desc, user_list[j].to_server )){ 
+							max_desc = user_list[j].to_server + 1; 
+						}
 						sprintf(msg, "%s se ha conectado.\n",user_list[j].name);
 						send_message_global(msg,&user_list[0], user_list);
 					} else {
@@ -141,7 +150,8 @@ void main(int argc, char * argv []){
 						printf("El usuario (%d) %s se ha desconectado.\n",who_usr->index, who);
 						strcpy(who_usr->name, "");
 						FD_CLR(who_usr->to_server, &lectura);
-						if ( close(who_usr->to_server) == -1 ) { perror ("close en desconexion") ;};
+						if ( close(who_usr->to_server) == -1 ) { 
+							perror ("close en desconexion de usuario") ;}
 					} else if (strcmp(cmd,"-quien") == 0 ) {
 						// Quienes estan conectados
 						send_quienes(who_usr, user_list);
@@ -182,7 +192,8 @@ return(n > 0);
 
 // Envia mensaje en casos especiales, seguido de una desconexion {NAME_USED, NO_MORE_ROOM}
 void send_message_close(int t1, int t2, char * msg){
-	if ( write(t1, msg, strlen(msg)+1) == -1 ) { perror("special_message write"); };
+	if ( write(t1, msg, strlen(msg)+1) == -1 ) { 
+		perror("special_message write"); }
 	if ( close(t1) == -1 ) { perror("special_message close t1"); };
 	if ( close(t2) == -1 ) { perror("special_message close t2"); };
 }
@@ -194,9 +205,11 @@ int accept_connection(char * msg, struct User * lista ){
 	sscanf(msg, "New user: %s", uname);
         printf("Nuevo usuario: %s\n", uname);
 	sprintf(tmp, "%s/%s", PIPE_COM, uname);
-	t1 =  open(tmp, O_WRONLY | O_NDELAY) ; if ( t1 == -1 ) { perror("error accepting WRITE"); }
+	t1 =  open(tmp, O_WRONLY | O_NDELAY) ; if ( t1 == -1 ) { 
+		perror("error accepting WRITE"); }
 	sprintf(tmp, "%s_serv", tmp);
-	t2 = open(tmp, O_RDONLY | O_NDELAY) ; if ( t2 == -1 ) { perror("error accepting READ"); }
+	t2 = open(tmp, O_RDONLY | O_NDELAY) ; if ( t2 == -1 ) { 
+		perror("error accepting READ"); }
 	for( i = 1; i < MAX_CLIENT; i++ ) {
 		// El nombre ya esta utilizado
 		if ( strcmp(lista[i].name, uname) == 0 ) {
@@ -235,7 +248,8 @@ void notificar_estado(char * msg, struct User * user, struct User lista[MAX_CLIE
 	for ( i = 0 ; i < MAX_CLIENT ; i ++ ){
 		if ( lista[i].last_w == user ) {
 			if (!disconnect) {
-				sprintf(notificacion, "%s %s [%s]\n", user->name, "ha cambiado su estado a", msg);
+				sprintf(notificacion, "%s %s [%s]\n", 
+					user->name, "ha cambiado su estado a", msg);
 			} else {
 				sprintf(notificacion, "%s %s\n", user->name, msg);
 			}
@@ -246,7 +260,8 @@ void notificar_estado(char * msg, struct User * user, struct User lista[MAX_CLIE
 
 // Responde al comando -quienes
 void send_quienes(struct User * user, struct User lista[MAX_CLIENT]){
-	char msg[MAX_MESSAGE_LEN], tmp[150], bigger[2000] = "  -- Usuarios conectados --\n\n";
+	char msg[MAX_MESSAGE_LEN], tmp[150], 
+		bigger[2000] = "  -- Usuarios conectados --\n\n";
 	int i;
 	printf("Sending connected users to %s\n", user->name);
 	for (i = 0; i < MAX_CLIENT; i++){
@@ -276,13 +291,15 @@ int send_message(char * msg, struct User * user, struct User from){
 	char error[50];
 	if ( user != NULL) {
 		sprintf(mensaje, "[%s]: %s", from.name, msg);
-		if (  write(user->to_name, mensaje, strlen(mensaje)+1) == -1 ) { perror("write send_message") ;};
+		if (  write(user->to_name, mensaje, strlen(mensaje)+1) == -1 ) { 
+			perror("write send_message") ;};
 		printf("Enviando mensaje a %s\n", user->name);
 		return 1;
 	} else {
 		if ( from.name != SERV_NAME ) {
 			sprintf(mensaje, "%s", "El usuario no esta conectado.\n");
-			if ( write(from.to_name, mensaje, strlen(mensaje)+1) == -1 ) { perror ("write send_message_not"); };
+			if ( write(from.to_name, mensaje, strlen(mensaje)+1) == -1 ) { 
+				perror ("write send_message_not"); };
 		}
 	}
 	return 0;
