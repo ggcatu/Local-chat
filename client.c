@@ -309,4 +309,3 @@ void term_handler(){
 	close_client();
 	exit(0);
 }
-
