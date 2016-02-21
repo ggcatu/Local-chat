@@ -41,6 +41,9 @@ void notificar_estado(char * msg, struct User * user, struct User *);
 // Responde al comando -quienes
 void send_quienes(struct User *, struct User *);
 
+// Envia un mensaje global, por ejemplo cuando un usuario se conecta
+void send_message_global(char * msg, struct User * user, struct User *);
+
 // Responde a los cambios de notificaciones y desconexion de los usuarios
 void notificar_estado(char * msg, struct User * user, struct User *);
 
