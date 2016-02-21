@@ -31,7 +31,6 @@ de usuarios actualmente conectados.
 #define DEFAULT_PIPE "server_c"
 #define SERV_USR lista[0]
 #define MAX_CLIENT 21
-#define MAX_PIPE_LEN
 #define MAX(x,y) (x > y ? x : y)
 #define MAX_MESSAGE_LEN 256
 #define MAX_PIPE_LEN 100
@@ -78,7 +77,7 @@ void main(int argc, char * argv []){
 		strcpy(user_list[i].name,"\0");
 	}
 	
-	printf("Iniciando servidor..\n");
+	printf("Iniciando servidor...\n");
 	
 	// Inicializando pipes
 	tmp = strdup(upipe);
@@ -93,8 +92,8 @@ void main(int argc, char * argv []){
 	// No se verifica el unlink pues es en caso de que se 
 	// encuentre uno ya creado con el mismo nombre
 	unlink(upipe);
-	if ( mknod(upipe, S_IFIFO, 0) == -1) { perror("MKNOD: "), exit(1) };
-	if ( chmod(upipe, 0660)  == -1 ) { perror("CHMOD: "), exit(1) };
+	if ( mknod(upipe, S_IFIFO, 0) == -1) { perror("MKNOD: "); exit(1); };
+	if ( chmod(upipe, 0660)  == -1 ) { perror("CHMOD: "); exit(1); };
 	
 	// Inicializando cliente servidor
 	strcpy(user_list[0].name, SERV_NAME);
@@ -274,7 +273,7 @@ void send_quienes(struct User * user, struct User lista[MAX_CLIENT]){
 }
 
 // Envia un mensaje global, por ejemplo cuando un usuario se conecta
-void send_message_global(char * msg, struct User * user, struct User lista[MAX_CLIENT]){
+void send_message_global(char * msg, struct User * user, struct User lista[MAX_CLIENT]) {
 	int i, file;
 	char mensaje[MAX_MESSAGE_LEN], tmp[150];
 	for(i=0; i < MAX_CLIENT; i++){
