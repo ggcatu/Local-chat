@@ -30,7 +30,7 @@ int readLine(int fd, char *str);
 
 // Envia mensaje en casos especiales, seguido de una desconexion 
 // {NAME_USED, NO_MORE_ROOM}
-void send_message_close(int t1, int t2, char * msg)
+void send_message_close(int t1, int t2, char * msg);
 
 // Maneja las conexiones entrantes por el pipe nominal server
 int accept_connection(char *, struct User *);
